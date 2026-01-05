@@ -1,0 +1,44 @@
+{
+  "realm": "master",
+  "enabled": true,
+
+  "clients": [
+    {
+      "clientId": "spring-backend-admin",
+      "name": "Spring Backend Admin",
+      "enabled": true,
+      "protocol": "openid-connect",
+
+      "clientAuthenticatorType": "client-secret",
+      "secret": "L8hcAy6gd47fvC6bxY+rNeHQMv5emM/shpTN3ncOnidr1eyj3QzZMRewV6f22XY",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "publicClient": false
+    }
+  ],
+
+  "users": [
+    {
+      "username": "kc-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Keycloak",
+      "lastName": "Administrator",
+      "email": "admin@keycloak.local",
+
+      "credentials": [
+        {
+          "type": "password",
+          "value": "AdminStrong@123",
+          "temporary": false
+        }
+      ],
+
+      "realmRoles": [
+        "admin",
+        "realm-admin"
+      ]
+    }
+  ]
+}
