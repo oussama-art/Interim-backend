@@ -1,0 +1,55 @@
+{
+  "realm": "interim",
+  "enabled": true,
+
+  "roles": {
+    "realm": [
+      { "name": "ADMIN" },
+      { "name": "CLIENT" },
+      { "name": "CANDIDATE" }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "spring-backend",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "lhZeVdwmG/Ix+5V/zrwW5sgA1UjleKaNqNzADxvuP0mjqRIFf9qcfj8pEVSerNVp",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true
+    },
+
+    {
+      "clientId": "frontend-angular",
+      "enabled": true,
+      "protocol": "openid-connect",
+
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "spring-backend-admin",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "1cdgk2koEbcdOEZuby2VJH3eirobttXb",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "publicClient": false
+    }
+
+  ]
+}

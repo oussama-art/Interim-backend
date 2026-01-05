@@ -1,40 +1,51 @@
-
+# ========================
+# ENV / SECRETS
+# ========================
 .env
 .env.*
 *.key
 *.pem
 
-Keycloak/realms/interim-realm.json
-
-
-docker-compose.override.yml
-
-
-target/
+# ========================
+# SPRING BOOT
+# ========================
+NService/target/
 *.log
 *.class
 
+# Ignorer uniquement le vrai fichier secret
+NService/src/main/resources/application-dev.yml
 
+# ========================
+# UPLOADS (runtime only)
+# ========================
+NService/uploads/
+!NService/uploads/.gitkeep
+
+# ========================
+# MAVEN
+# ========================
 .mvn/wrapper/maven-wrapper.jar
 
-
+# ========================
+# IDE
+# ========================
 .idea/
 .vscode/
 *.iml
 
-
+# ========================
+# OS
+# ========================
 .DS_Store
 Thumbs.db
 
-NService/uploads/
+# ========================
+# DOCKER
+# ========================
+docker-compose.override.yml
 
-
-tmp/
-temp/
-
-
-./Keycloak/realms/interim-realm.json
-./Keycloak/realms/master-realm.json
-
-
-src/main/resources/application-dev.yml
+# ========================
+# KEYCLOAK (secrets)
+# ========================
+NService/Keycloak/realms/*-realm.json

@@ -1,0 +1,53 @@
+server:
+  port: 8082
+  error:
+    include-message: always
+
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: your_email@gmail.com
+    password: your_email_app_password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/your_database_name
+    username: your_db_username
+    password: your_db_password
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8081/realms/your-realm/protocol/openid-connect/certs
+
+springdoc:
+  swagger-ui:
+    enabled: true
+
+keycloak-client:
+  token-url: http://localhost:8081/realms/your-realm/protocol/openid-connect/token
+  client-id: your-client-id
+  client-secret: your-client-secret
