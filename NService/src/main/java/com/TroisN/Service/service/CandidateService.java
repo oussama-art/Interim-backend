@@ -144,4 +144,15 @@ public class CandidateService {
                         new EntityNotFoundException("Candidat introuvable pour l'utilisateur connecté")
                 );
     }
+
+
+    public CandidateResponse getCandidateById(Long id) {
+        Candidate candidate = candidateRepository.findById(id)
+                .orElseThrow(() ->
+                        new EntityNotFoundException("Candidat introuvable avec l'id : " + id)
+                );
+
+        return CandidateMapper.toResponseDTO(candidate);
+    }
+
 }

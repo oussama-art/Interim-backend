@@ -4,6 +4,7 @@ import com.TroisN.Service.dto.admin.AdminCreateRequest;
 import com.TroisN.Service.dto.admin.AdminPatchRequest;
 import com.TroisN.Service.dto.admin.AdminResponse;
 import com.TroisN.Service.entity.Admin;
+import com.TroisN.Service.entity.ClientCompany;
 import com.TroisN.Service.entity.Demande;
 import com.TroisN.Service.mapper.AdminMapper;
 import com.TroisN.Service.repository.AdminRepository;
@@ -14,7 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
+import java.util.stream.Collectors;
 import java.util.List;
 
 @Service
@@ -120,31 +121,87 @@ public class AdminService {
         return AdminMapper.toResponseDTO(updated);
     }
 
+
+
     public void notifyAdmins(Demande demande) {
 
         List<String> adminEmails = adminRepository.findAllAdminEmails();
-
         if (adminEmails.isEmpty()) {
             return;
         }
 
-        String subject = "New Demand Created";
+        String clientName = resolveClientDisplayName(demande);
+        String subject = "📢 New Demand Created";
+
+        // 🔹 Profils demandés avec quantités
+        String profilesDetails = demande.getProfils() != null && !demande.getProfils().isEmpty()
+                ? demande.getProfils().stream()
+                .map(p -> String.format("%s (%d)", p.getProfilName(), p.getQuantity()))
+                .collect(Collectors.joining(", "))
+                : "Not specified";
+
+        String adminDashboardUrl = "http://localhost:4200/admin/demandes";
 
         String content = """
-        A new demand has been created.
+        <p>A new demand has been created.</p>
 
-        Client: %s
-        Demand ID: %d
-        Created at: %s
+        <p><strong>Client:</strong><br/>%s</p>
 
-        Please log in to the admin dashboard to review it.
+        <p><strong>Demand details:</strong></p>
+        <ul>
+            <li><strong>Demand ID:</strong> %d</li>
+            <li><strong>Created at:</strong> %s</li>
+            <li><strong>Total employees needed:</strong> %d</li>
+            <li><strong>Requested profiles:</strong> %s</li>
+        </ul>
+
+        <p>👉 <a href="%s">Click here to review the demand</a></p>
         """.formatted(
-                demande.getClient().getTitle(),
+                clientName,
                 demande.getId(),
-                demande.getCreatedAt()
+                demande.getCreatedAt(),
+                demande.getTotalEmployeesNeeded(),
+                profilesDetails,
+                adminDashboardUrl
         );
 
         emailService.sendEmail(adminEmails, subject, content);
     }
+
+
+
+    private String resolveClientDisplayName(Demande demande) {
+
+        if (demande == null || demande.getClient() == null) {
+            return "Unknown client";
+        }
+
+        ClientCompany client = demande.getClient();
+
+        // 1️⃣ Priorité : titre explicite
+        if (client.getTitle() != null && !client.getTitle().isBlank()) {
+            return client.getTitle();
+        }
+
+        // 2️⃣ Fallback : dériver depuis l'email
+        String email = client.getEmailAddress(); // hérité de User
+        if (email == null || !email.contains("@")) {
+            return "Client";
+        }
+
+        String namePart = email.substring(0, email.indexOf('@'));
+
+        // Supprimer chiffres et caractères spéciaux
+        namePart = namePart.replaceAll("[^a-zA-Z]", "");
+
+        if (namePart.isBlank()) {
+            return "Client";
+        }
+
+        // Capitalisation propre
+        return Character.toUpperCase(namePart.charAt(0)) + namePart.substring(1).toLowerCase();
+    }
+
+
 
 }

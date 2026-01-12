@@ -5,6 +5,7 @@ import com.TroisN.Service.service.CandidateService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -72,5 +73,12 @@ public class CandidateController {
     @DeleteMapping("/me")
     public void deleteMe(Authentication authentication) {
         candidateService.deleteCandidate(authentication);
+    }
+
+
+    @GetMapping("/{id}")
+    public ResponseEntity<CandidateResponse> getCandidateById(@PathVariable Long id) {
+        CandidateResponse response = candidateService.getCandidateById(id);
+        return ResponseEntity.ok(response);
     }
 }

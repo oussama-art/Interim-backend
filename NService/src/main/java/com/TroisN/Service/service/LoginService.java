@@ -14,8 +14,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -40,6 +38,13 @@ public class LoginService {
 
     @Value("${keycloak-client.client-secret}")
     private String clientSecret;
+
+
+    @Value("${keycloak-frontend-client.client-id}")
+    private String frontendClientId;
+
+    @Value("${keycloak-frontend-client.client-secret}")
+    private String frontendClientSecret;
 
 
     /**
@@ -75,15 +80,7 @@ public class LoginService {
         }
     }
 
-
     public TokenResponse refreshToken(String refreshToken) {
-
-        if (refreshToken == null || refreshToken.isBlank()) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Refresh token is missing"
-            );
-        }
 
         try {
             return webClient.post()
@@ -92,8 +89,8 @@ public class LoginService {
                     .body(
                             BodyInserters.fromFormData("grant_type", "refresh_token")
                                     .with("refresh_token", refreshToken)
-                                    .with("client_id", clientId)
-                                    .with("client_secret", clientSecret)
+                                    .with("client_id", frontendClientId)
+                                    .with("client_secret", frontendClientSecret)
                     )
                     .retrieve()
                     .bodyToMono(TokenResponse.class)
@@ -102,10 +99,11 @@ public class LoginService {
         } catch (Exception ex) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
-                    "Refresh token expired or invalid"
+                    "Frontend refresh token expired or invalid"
             );
         }
     }
+
 
     /**
      * Finalisation de l'utilisateur Google après login Keycloak

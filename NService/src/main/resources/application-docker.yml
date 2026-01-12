@@ -56,6 +56,9 @@ keycloak-client:
   client-id: spring-backend
   client-secret: ${KEYCLOAK_CLIENT_SECRET}
 
+keycloak-frontend-client:
+  client-id: frontend-angular
+  client-secret: ${KEYCLOAK_FRONTEND_CLIENT_SECRET}
 
 keycloak:
   admin:

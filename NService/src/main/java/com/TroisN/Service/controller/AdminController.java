@@ -41,6 +41,7 @@ public class AdminController {
     ) throws IOException {
         return adminService.createAdmin(dto);
     }
+
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public void deleteAdmin(@PathVariable Long id){

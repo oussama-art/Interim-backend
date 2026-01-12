@@ -71,6 +71,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/auth/complete-google-login").authenticated()
                         .requestMatchers("/api/admins/**").hasRole("ADMIN")
+                        .requestMatchers("/api/clients/*/offers/**").hasAnyRole("CLIENT", "ADMIN")
                         .requestMatchers("/api/clients/**").hasRole("CLIENT")
                         .requestMatchers("/api/candidate/**").authenticated()
                         .anyRequest().authenticated()

@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/clients/offers")
+@RequestMapping("/api/clients")
 public class OfferController {
 
     private final OfferService offerService;
@@ -23,8 +23,19 @@ public class OfferController {
         this.offerService = offerService;
     }
 
+//    @PreAuthorize("hasRole('ADMIN')")
+//    @PostMapping
+//    public ResponseEntity<OfferResponse> createOffer(
+//            @PathVariable Long clientId,
+//            @Valid @RequestBody OfferCreateRequest request
+//    ) {
+//        return ResponseEntity
+//                .status(HttpStatus.CREATED)
+//                .body(offerService.createOffer(clientId, request));
+//    }
+
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping
+    @PostMapping("/{clientId}/offers")  // ← Ajouté /{clientId}/offers
     public ResponseEntity<OfferResponse> createOffer(
             @PathVariable Long clientId,
             @Valid @RequestBody OfferCreateRequest request
@@ -61,7 +72,8 @@ public class OfferController {
         );
     }
 
-    @GetMapping
+    @PreAuthorize("hasRole('CLIENT')")
+    @GetMapping("/{clientId}/offers")
     public ResponseEntity<List<OfferResponse>> getOffersByClient(
             @PathVariable Long clientId
     ) {
