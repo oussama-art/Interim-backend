@@ -33,6 +33,10 @@ public class AssignmentMapper {
         dto.setStartDate(assignment.getStartDate());
         dto.setEndDate(assignment.getEndDate());
 
+        dto.setDemandeId(assignment.getDemande().getId());
+
+        dto.setCandidateId(assignment.getCandidate().getId());
+
         return dto;
     }
 }

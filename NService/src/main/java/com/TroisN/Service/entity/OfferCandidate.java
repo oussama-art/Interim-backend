@@ -31,6 +31,11 @@ public class OfferCandidate {
     private Candidate candidate;
 
 
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "demande_profil_id", nullable = false)
+    private DemandeProfil demandeProfil;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OfferCandidateStatus status;
@@ -43,6 +48,5 @@ public class OfferCandidate {
         this.proposedAt = LocalDateTime.now();
         this.status = OfferCandidateStatus.PROPOSED;
     }
-
 
 }

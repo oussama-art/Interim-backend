@@ -10,6 +10,8 @@ public class ClientMapper {
         ClientResponse dto = new ClientResponse();
 
         dto.setId(clientCompany.getId());
+        dto.setFirstName(clientCompany.getFirstName());
+        dto.setLastName(clientCompany.getLastName());
 
         dto.setPhoneNumber(clientCompany.getPhoneNumber());
         dto.setEmailAddress(clientCompany.getEmailAddress());
@@ -18,6 +20,8 @@ public class ClientMapper {
         dto.setDescription(clientCompany.getDescription());
         dto.setTitle(clientCompany.getTitle());
         dto.setSector(clientCompany.getSector());
+        dto.setCreatedAt(clientCompany.getCreatedAt());
+        dto.setNumDemande(clientCompany.getNumDemande());
 
         return dto;
 

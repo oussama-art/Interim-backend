@@ -26,18 +26,25 @@ public class OfferMapper {
         return response;
     }
 
-    private static OfferCandidateResponse toOfferCandidateResponse(OfferCandidate oc) {
+    public static OfferCandidateResponse toOfferCandidateResponse(OfferCandidate oc) {
+
         OfferCandidateResponse dto = new OfferCandidateResponse();
 
         Candidate c = oc.getCandidate();
+        DemandeProfil p = oc.getDemandeProfil();
 
         dto.setCandidateId(c.getId());
         dto.setFirstName(c.getFirstName());
         dto.setLastName(c.getLastName());
         dto.setSkills(c.getSkills());
         dto.setProfessional(c.getProfessional());
+
+        dto.setDemandeProfilId(p.getId());
+        dto.setDemandeProfilName(p.getProfilName());
+
         dto.setStatus(oc.getStatus().name());
 
         return dto;
     }
+
 }

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class OfferCreateRequest {
@@ -12,6 +13,7 @@ public class OfferCreateRequest {
     @NotNull
     private Long demandeId;
 
+
     @NotEmpty
-    private List<Long> candidateIds;
+    private Map<Long, List<Long>> profilsCandidates;
 }

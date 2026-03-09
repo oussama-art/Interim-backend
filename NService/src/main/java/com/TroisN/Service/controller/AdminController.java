@@ -3,9 +3,12 @@ package com.TroisN.Service.controller;
 import com.TroisN.Service.dto.admin.AdminCreateRequest;
 import com.TroisN.Service.dto.admin.AdminPatchRequest;
 import com.TroisN.Service.dto.admin.AdminResponse;
+import com.TroisN.Service.dto.admin.SuspendUserRequest;
 import com.TroisN.Service.service.AdminService;
+import com.TroisN.Service.service.LoginService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,9 +20,11 @@ import java.io.IOException;
 public class AdminController {
 
     private final AdminService adminService;
+    private final LoginService loginService;
 
-    public AdminController(AdminService adminService){
+    public AdminController(AdminService adminService, LoginService loginService){
         this.adminService = adminService;
+        this.loginService = loginService;
     }
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
@@ -55,4 +60,23 @@ public class AdminController {
     ){
         return adminService.patchAdmin(dto,id);
     }
+
+    @PatchMapping("/suspend")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> suspendUser(
+            @RequestBody SuspendUserRequest request
+    ) {
+
+        if (request.getSuspendMinutes() == null) {
+            loginService.suspendUser(request.getEmail());
+        } else {
+            loginService.suspendUserTemporarily(
+                    request.getEmail(),
+                    request.getSuspendMinutes()
+            );
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
 }

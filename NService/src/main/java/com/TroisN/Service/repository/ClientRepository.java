@@ -3,6 +3,7 @@ package com.TroisN.Service.repository;
 import com.TroisN.Service.entity.ClientCompany;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ClientRepository extends JpaRepository<ClientCompany, Long> {
@@ -12,4 +13,8 @@ public interface ClientRepository extends JpaRepository<ClientCompany, Long> {
     boolean existsByKeycloakUserId(String keycloakUserId);
 
     void deleteByKeycloakUserId(String keycloakUserId);
+
+    List<ClientCompany> findByNumDemande(Long numDemande);
+
+
 }

@@ -18,6 +18,9 @@ public class DemandeMapper {
         demande.setDescription(request.getDescription());
         demande.setTotalEmployeesNeeded(request.getTotalEmployeesNeeded());
 
+        demande.setStartDate(request.getStartDate());
+        demande.setEndDate(request.getEndDate());
+
         List<DemandeProfil> profilEntities = request.getProfils().stream()
                 .map(DemandeMapper::toDemandeProfilEntity)
                 .peek(profil -> profil.setDemande(demande))
@@ -34,15 +37,25 @@ public class DemandeMapper {
         profil.setQuantity(request.getQuantity());
         return profil;
     }
-
     public static DemandeResponse toDemandeResponse(Demande demande) {
         DemandeResponse response = new DemandeResponse();
 
         response.setId(demande.getId());
+
+        response.setReference(demande.getReference());
+
         response.setTitle(demande.getTitle());
         response.setDescription(demande.getDescription());
         response.setTotalEmployeesNeeded(demande.getTotalEmployeesNeeded());
+
+        response.setStartDate(demande.getStartDate());
+        response.setEndDate(demande.getEndDate());
         response.setClientId(demande.getClient().getId());
+
+        response.setCreatedAt(demande.getCreatedAt());
+        response.setUpdatedAt(demande.getUpdatedAt());
+
+        response.setStatus(demande.getStatus());
 
         List<DemandeProfilResponse> profilResponses = demande.getProfils().stream()
                 .map(DemandeMapper::toDemandeProfilResponse)
@@ -52,6 +65,7 @@ public class DemandeMapper {
 
         return response;
     }
+
 
     public static DemandeProfilResponse toDemandeProfilResponse(DemandeProfil profil) {
         DemandeProfilResponse response = new DemandeProfilResponse();

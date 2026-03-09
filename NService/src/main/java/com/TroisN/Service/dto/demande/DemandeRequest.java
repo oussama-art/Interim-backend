@@ -1,10 +1,9 @@
 package com.TroisN.Service.dto.demande;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,5 +21,20 @@ public class DemandeRequest {
     private Integer totalEmployeesNeeded;
 
     @NotNull
-    private List<DemandeProfilRequest> profils = new ArrayList<>();;
+    private LocalDate startDate;
+
+    @NotNull
+    private LocalDate endDate;
+
+    @NotNull
+    private List<DemandeProfilRequest> profils = new ArrayList<>();
+
+
+    @AssertTrue(message = "La date de fin doit être postérieure ou égale à la date de début")
+    public boolean isDateRangeValid() {
+        if (startDate == null || endDate == null) {
+            return true; // géré par @NotNull
+        }
+        return !endDate.isBefore(startDate);
+    }
 }

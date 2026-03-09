@@ -1,11 +1,13 @@
 package com.TroisN.Service.controller;
 
+import com.TroisN.Service.dto.RefreshTokenRequest;
 import com.TroisN.Service.dto.auth.GoogleLoginRequest;
 import com.TroisN.Service.dto.auth.TokenResponse;
 import com.TroisN.Service.dto.user.LoginRequest;
 import com.TroisN.Service.service.LoginService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -50,13 +52,13 @@ public class AuthController {
                 .toList();
     }
 
-
     @PostMapping("/refresh")
     public TokenResponse refresh(
-            @RequestParam("refresh_token") String refreshToken
+            @RequestBody RefreshTokenRequest request
     ) {
-        return loginService.refreshToken(refreshToken);
+        return loginService.refreshToken(request.refresh_token());
     }
+
 
 
     @PostMapping("/complete-google-login")
@@ -67,4 +69,17 @@ public class AuthController {
         loginService.completeGoogleLogin(jwt, request.getRole());
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout(@RequestBody Map<String, String> payload) {
+        try {
+            String refreshToken = payload.get("refresh_token");
+            loginService.logout(refreshToken);
+            return ResponseEntity.ok(Map.of("message", "Déconnexion réussie"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Erreur lors de la déconnexion: " + e.getMessage()));
+        }
+    }
+
 }

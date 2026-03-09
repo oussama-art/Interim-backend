@@ -3,17 +3,19 @@ package com.TroisN.Service.service;
 import com.TroisN.Service.dto.candidate.CandidateCreateRequest;
 import com.TroisN.Service.dto.client.ClientCreateRequest;
 import jakarta.ws.rs.core.Response;
+import lombok.RequiredArgsConstructor;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
-import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class KeycloakUserService {
 
     private final Keycloak keycloak;
@@ -21,23 +23,65 @@ public class KeycloakUserService {
     @Value("${keycloak.admin.realm}")
     private String realm;
 
-    public KeycloakUserService(Keycloak keycloak) {
-        this.keycloak = keycloak;
-    }
 
     public String createClientUser(ClientCreateRequest dto) {
 
-        String email = dto.getEmailAddress();
+        String userId = createUser(
+                dto.getEmailAddress(),
+                dto.getPassword(),
+                dto.getFirstName(),
+                dto.getLastName(),
+                "Client"
+        );
 
-        String firstName = dto.getFirstName();
-        String lastName = dto.getLastName();
+        assignRoleByUserId(userId, "CLIENT");
+
+        return userId;
+    }
+
+    public String createAdminUser(String email, String password,
+                                  String firstName, String lastName) {
+
+        String userId = createUser(
+                email,
+                password,
+                firstName,
+                lastName,
+                "Admin"
+        );
+
+        assignRoleByUserId(userId, "ADMIN");
+
+        return userId;
+    }
+
+//    public String createCandidateUser(CandidateCreateRequest dto) {
+//
+//        String userId = createUser(
+//                dto.getEmailAddress(),
+//                dto.getPassword(),
+//                dto.getFirstName(),
+//                dto.getLastName(),
+//                "Candidate"
+//        );
+//
+//        assignRoleByUserId(userId, "CANDIDATE");
+//
+//        return userId;
+//    }
+
+    private String createUser(String email,
+                              String password,
+                              String firstName,
+                              String lastName,
+                              String defaultLastName) {
 
         if (firstName == null || firstName.isBlank()) {
             firstName = email.substring(0, email.indexOf("@"));
         }
 
         if (lastName == null || lastName.isBlank()) {
-            lastName = "Client";
+            lastName = defaultLastName;
         }
 
         UserRepresentation user = new UserRepresentation();
@@ -49,61 +93,6 @@ public class KeycloakUserService {
         user.setEmailVerified(true);
         user.setAttributes(new HashMap<>());
 
-        CredentialRepresentation password = new CredentialRepresentation();
-        password.setType(CredentialRepresentation.PASSWORD);
-        password.setValue(dto.getPassword());
-        password.setTemporary(false);
-
-        user.setCredentials(List.of(password));
-
-        Response response = keycloak.realm(realm)
-                .users()
-                .create(user);
-
-        if (response.getStatus() != 201) {
-            String body = response.hasEntity() ? response.readEntity(String.class) : "no body";
-            throw new IllegalStateException(
-                    "Erreur création Keycloak - status=" + response.getStatus() + " body=" + body
-            );
-        }
-
-        String userId = response.getLocation()
-                .getPath()
-                .replaceAll(".*/([^/]+)$", "$1");
-
-        RoleRepresentation role = keycloak.realm(realm)
-                .roles()
-                .get("CLIENT")
-                .toRepresentation();
-
-        keycloak.realm(realm)
-                .users()
-                .get(userId)
-                .roles()
-                .realmLevel()
-                .add(List.of(role));
-
-        return userId;
-    }
-
-    public String createAdminUser(String email, String password, String firstName, String lastName) {
-
-        if (firstName == null || firstName.isBlank()) {
-            firstName = email.substring(0, email.indexOf("@"));
-        }
-
-        if (lastName == null || lastName.isBlank()) {
-            lastName = "Admin";
-        }
-
-        UserRepresentation user = new UserRepresentation();
-        user.setUsername(email);
-        user.setEmail(email);
-        user.setFirstName(firstName);
-        user.setLastName(lastName);
-        user.setEnabled(true);
-        user.setEmailVerified(true);
-
         CredentialRepresentation credential = new CredentialRepresentation();
         credential.setType(CredentialRepresentation.PASSWORD);
         credential.setValue(password);
@@ -116,91 +105,22 @@ public class KeycloakUserService {
                 .create(user);
 
         if (response.getStatus() != 201) {
-            String body = response.hasEntity() ? response.readEntity(String.class) : "no body";
+            String body = response.hasEntity()
+                    ? response.readEntity(String.class)
+                    : "no body";
+
             throw new IllegalStateException(
-                    "Erreur création Keycloak - status=" + response.getStatus() + " body=" + body
+                    "Erreur création Keycloak - status="
+                            + response.getStatus()
+                            + " body=" + body
             );
         }
 
-        String userId = response.getLocation()
+        return response.getLocation()
                 .getPath()
                 .replaceAll(".*/([^/]+)$", "$1");
-
-        RoleRepresentation adminRole = keycloak.realm(realm)
-                .roles()
-                .get("ADMIN")
-                .toRepresentation();
-
-        keycloak.realm(realm)
-                .users()
-                .get(userId)
-                .roles()
-                .realmLevel()
-                .add(List.of(adminRole));
-
-        return userId;
     }
 
-    public String createCandidateUser(CandidateCreateRequest dto) {
-
-        String email = dto.getEmailAddress();
-        String password = dto.getPassword();
-
-        String firstName = dto.getFirstName();
-        String lastName = dto.getLastName();
-
-        if (firstName == null || firstName.isBlank()) {
-            firstName = email.substring(0, email.indexOf("@"));
-        }
-
-        if (lastName == null || lastName.isBlank()) {
-            lastName = "Candidate";
-        }
-
-        UserRepresentation user = new UserRepresentation();
-        user.setUsername(email);
-        user.setEmail(email);
-        user.setFirstName(firstName);
-        user.setLastName(lastName);
-        user.setEnabled(true);
-        user.setEmailVerified(true);
-
-        CredentialRepresentation credential = new CredentialRepresentation();
-        credential.setType(CredentialRepresentation.PASSWORD);
-        credential.setValue(password);
-        credential.setTemporary(false);
-
-        user.setCredentials(List.of(credential));
-
-        Response response = keycloak.realm(realm)
-                .users()
-                .create(user);
-
-        if (response.getStatus() != 201) {
-            String body = response.hasEntity() ? response.readEntity(String.class) : "no body";
-            throw new IllegalStateException(
-                    "Erreur création Keycloak - status=" + response.getStatus() + " body=" + body
-            );
-        }
-
-        String userId = response.getLocation()
-                .getPath()
-                .replaceAll(".*/([^/]+)$", "$1");
-
-        RoleRepresentation role = keycloak.realm(realm)
-                .roles()
-                .get("CANDIDATE")
-                .toRepresentation();
-
-        keycloak.realm(realm)
-                .users()
-                .get(userId)
-                .roles()
-                .realmLevel()
-                .add(List.of(role));
-
-        return userId;
-    }
 
     public void deleteUser(String userId) {
         keycloak.realm(realm)
@@ -211,24 +131,117 @@ public class KeycloakUserService {
 
     public void assignRoleToExistingUser(String email, String roleName) {
 
-        var realmResource = keycloak.realm(realm);
+        UserRepresentation user = getUserByEmail(email);
 
-        List<UserRepresentation> users = realmResource.users().search(email, true);
+        assignRoleByUserId(user.getId(), roleName);
+    }
 
-        if (users.isEmpty()) {
-            throw new IllegalStateException("Utilisateur Keycloak introuvable : " + email);
-        }
 
-        UserRepresentation user = users.get(0);
+    private void assignRoleByUserId(String userId, String roleName) {
 
-        RoleRepresentation role = realmResource.roles()
+        RoleRepresentation role = keycloak.realm(realm)
+                .roles()
                 .get(roleName)
                 .toRepresentation();
 
-        realmResource.users()
-                .get(user.getId())
+        keycloak.realm(realm)
+                .users()
+                .get(userId)
                 .roles()
                 .realmLevel()
                 .add(List.of(role));
+    }
+
+
+    public void disableUserByEmail(String email) {
+
+        UserRepresentation user = getUserByEmail(email);
+
+        user.setEnabled(false);
+
+        keycloak.realm(realm)
+                .users()
+                .get(user.getId())
+                .update(user);
+
+        // Force logout sessions
+        keycloak.realm(realm)
+                .users()
+                .get(user.getId())
+                .logout();
+    }
+
+    public void disableUserById(String userId) {
+
+        var userResource = keycloak.realm(realm)
+                .users()
+                .get(userId);
+
+        UserRepresentation user = userResource.toRepresentation();
+        user.setEnabled(false);
+
+        userResource.update(user);
+        userResource.logout();
+    }
+
+
+    public void enableUserByEmail(String email) {
+
+        UserRepresentation user = getUserByEmail(email);
+
+        user.setEnabled(true);
+
+        keycloak.realm(realm)
+                .users()
+                .get(user.getId())
+                .update(user);
+    }
+
+    public void enableUserById(String userId) {
+
+        var userResource = keycloak.realm(realm)
+                .users()
+                .get(userId);
+
+        UserRepresentation user = userResource.toRepresentation();
+        user.setEnabled(true);
+
+        userResource.update(user);
+    }
+
+
+    public void logoutUser(String userId) {
+        keycloak.realm(realm)
+                .users()
+                .get(userId)
+                .logout();
+    }
+
+
+    public UserRepresentation getUserByEmail(String email) {
+
+        List<UserRepresentation> users =
+                keycloak.realm(realm)
+                        .users()
+                        .search(email, true);
+
+        if (users.isEmpty()) {
+            throw new IllegalStateException(
+                    "Utilisateur Keycloak introuvable : " + email
+            );
+        }
+
+        return users.get(0);
+    }
+
+
+    public boolean userExists(String email) {
+
+        List<UserRepresentation> users =
+                keycloak.realm(realm)
+                        .users()
+                        .search(email, true);
+
+        return !users.isEmpty();
     }
 }

@@ -15,4 +15,6 @@ public class ClientCompany extends User{
     private String sector;
 
     private Integer nbEmployee;
+
+    private Long numDemande;
 }

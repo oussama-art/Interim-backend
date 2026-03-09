@@ -2,27 +2,39 @@ package com.TroisN.Service.dto.candidate;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
+
+import java.time.LocalDateTime;
 
 @Data
 public class CandidatePatchRequest {
 
-    // Champs User
     private String firstName;
+
     private String lastName;
 
-    @Email
-    private String emailAddress;
-
+    @Pattern(
+            regexp = "^\\+[1-9]\\d{1,2}\\d{6,12}$",
+            message = "Numéro invalide (format invalide)"
+    )
     private String phoneNumber;
 
-    @Min(0)
+    @Email(message = "Email invalide")
+    private String emailAddress;
+
+    @Min(value = 0, message = "L'expérience ne peut pas être négative")
     private Integer experienceYear;
 
-    // Champs spécifiques à Candidate
-    private String skills;
-    private String professional;
-    private String cin;
-    private String cssNumber;
+    private Boolean active;
 
+    private LocalDateTime suspendedUntil;
+
+    private String skills;
+
+    private String professional;
+
+    private String cin;
+
+    private String cssNumber;
 }

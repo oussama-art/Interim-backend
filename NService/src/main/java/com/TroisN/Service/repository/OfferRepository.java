@@ -1,6 +1,7 @@
 package com.TroisN.Service.repository;
 
 import com.TroisN.Service.entity.Offer;
+import com.TroisN.Service.entity.OfferCandidate;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,5 +32,20 @@ public interface OfferRepository extends JpaRepository<Offer,Long> {
         WHERE o.client.id = :clientId
     """)
     List<Offer> findOffersByClientIdWithDetails(@Param("clientId") Long clientId);
+
+    List<Offer> findByDemande_Id(Long demandeId);
+
+    @Query("""
+    SELECT DISTINCT o FROM Offer o
+    JOIN FETCH o.demande
+    JOIN FETCH o.client
+    LEFT JOIN FETCH o.proposedCandidates pc
+    LEFT JOIN FETCH pc.candidate
+""")
+    List<Offer> findAllWithDetails();
+
+
+
+
 
 }

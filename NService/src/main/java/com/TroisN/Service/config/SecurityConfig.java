@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .securityMatcher(
                         "/api/auth/login",
                         "/api/auth/refresh",
+                        "/api/account-requests/create",
+                        "/api/account-requests/check-email",
                         "/api/clients/create",
                         "/api/admins/create",
                         "/api/candidates/create",
@@ -62,6 +64,7 @@ public class SecurityConfig {
     public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
 
         http
+                .securityMatcher("/api/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session ->
@@ -70,10 +73,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/auth/complete-google-login").authenticated()
+
+                        .requestMatchers("/api/account-requests/**").hasRole("ADMIN")
+
                         .requestMatchers("/api/admins/**").hasRole("ADMIN")
                         .requestMatchers("/api/clients/*/offers/**").hasAnyRole("CLIENT", "ADMIN")
-                        .requestMatchers("/api/clients/**").hasRole("CLIENT")
-                        .requestMatchers("/api/candidate/**").authenticated()
+                        .requestMatchers("/api/clients/**").hasAnyRole("CLIENT","ADMIN")
+                        .requestMatchers("/api/candidates/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 ->
@@ -88,6 +94,7 @@ public class SecurityConfig {
 
         return http.build();
     }
+
 
     /**
      * 🔑 Convert Keycloak realm roles -> Spring Security roles

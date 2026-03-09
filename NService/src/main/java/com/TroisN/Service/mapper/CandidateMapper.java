@@ -5,26 +5,31 @@ import com.TroisN.Service.entity.Candidate;
 
 public class CandidateMapper {
 
+    private CandidateMapper() {}
+
     public static CandidateResponse toResponseDTO(Candidate candidate) {
 
-        if (candidate == null) return null;
+        if (candidate == null) {
+            return null;
+        }
 
-        CandidateResponse dto = new CandidateResponse();
-
-        dto.setId(candidate.getId());
-        dto.setFirstName(candidate.getFirstName());
-        dto.setLastName(candidate.getLastName());
-        dto.setPhoneNumber(candidate.getPhoneNumber());
-        dto.setEmailAddress(candidate.getEmailAddress());
-        dto.setExperienceYear(candidate.getExperienceYear());
-
-        dto.setSkills(candidate.getSkills());
-        dto.setProfessional(candidate.getProfessional());
-        dto.setCin(candidate.getCin());
-        dto.setCssNumber(candidate.getCssNumber());
-
-        dto.setCvPath(candidate.getCvPath());
-
-        return dto;
+        return new CandidateResponse(
+                candidate.getId(),
+                candidate.getFirstName(),
+                candidate.getLastName(),
+                candidate.getCreatedAt(),
+                candidate.getPhoneNumber(),
+                candidate.getEmailAddress(),
+                candidate.getExperienceYear(),
+                candidate.isActive(),
+                candidate.getSuspendedUntil(),
+                candidate.getSkills(),
+                candidate.getProfessional(),
+                candidate.getCin(),
+                candidate.getCssNumber(),
+                candidate.getCvPath(),
+                candidate.getStatus(),
+                candidate.getNextAvailableDate()
+        );
     }
 }

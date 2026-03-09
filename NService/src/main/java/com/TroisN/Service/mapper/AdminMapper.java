@@ -19,6 +19,7 @@ public class AdminMapper {
         dto.setEmailAddress(admin.getEmailAddress());
         dto.setExperienceYear(admin.getExperienceYear());
         dto.setAdminLevel(admin.getAdminLevel());
+        dto.setCreatedAt(admin.getCreatedAt());
 
         return dto;
     }

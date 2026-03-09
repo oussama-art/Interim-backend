@@ -66,3 +66,9 @@ keycloak:
     realm: ${KEYCLOAK_REALM}
     client-id: spring-backend-admin
     client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+
+app:
+  storage:
+    base-dir: ${UPLOADS_DIR:/app/uploads}
+    cv-dir: ${CV_DIR:${app.storage.base-dir}/cv}
+    contracts-dir: ${CONTRACTS_DIR:${app.storage.base-dir}/contracts}

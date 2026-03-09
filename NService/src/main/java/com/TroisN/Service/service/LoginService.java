@@ -20,6 +20,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class LoginService {
@@ -39,18 +41,13 @@ public class LoginService {
     @Value("${keycloak-client.client-secret}")
     private String clientSecret;
 
-
-    @Value("${keycloak-frontend-client.client-id}")
-    private String frontendClientId;
-
-    @Value("${keycloak-frontend-client.client-secret}")
-    private String frontendClientSecret;
-
-
-    /**
-     * LOGIN user via PASSWORD GRANT
-     */
+    /* =====================================================
+       LOGIN
+       ===================================================== */
     public TokenResponse login(LoginRequest request) {
+
+        checkIfUserAllowedToLogin(request.getEmailAddress());
+
         try {
             return webClient.post()
                     .uri(tokenUrl)
@@ -80,34 +77,43 @@ public class LoginService {
         }
     }
 
+    /* =====================================================
+       REFRESH TOKEN
+       ===================================================== */
     public TokenResponse refreshToken(String refreshToken) {
 
         try {
             return webClient.post()
                     .uri(tokenUrl)
-                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(
                             BodyInserters.fromFormData("grant_type", "refresh_token")
                                     .with("refresh_token", refreshToken)
-                                    .with("client_id", frontendClientId)
-                                    .with("client_secret", frontendClientSecret)
+                                    .with("client_id", clientId)
+                                    .with("client_secret", clientSecret)
                     )
                     .retrieve()
+                    .onStatus(HttpStatusCode::isError, response ->
+                            response.bodyToMono(String.class)
+                                    .map(body -> new ResponseStatusException(
+                                            HttpStatus.UNAUTHORIZED,
+                                            "Refresh token expired or invalid"
+                                    ))
+                    )
                     .bodyToMono(TokenResponse.class)
                     .block();
 
         } catch (Exception ex) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
-                    "Frontend refresh token expired or invalid"
+                    "Refresh token failed"
             );
         }
     }
 
-
-    /**
-     * Finalisation de l'utilisateur Google après login Keycloak
-     */
+    /* =====================================================
+       GOOGLE LOGIN
+       ===================================================== */
     public void completeGoogleLogin(Jwt jwt, RoleType role) {
 
         String keycloakUserId = jwt.getSubject();
@@ -126,8 +132,9 @@ public class LoginService {
                 if (!candidateRepository.existsByEmailAddress(email)) {
                     Candidate candidate = new Candidate();
                     candidate.setEmailAddress(email);
-                    candidate.setKeycloakUserId(keycloakUserId);
+//                    candidate.setKeycloakUserId(keycloakUserId);
                     candidate.setExperienceYear(0);
+                    candidate.setActive(true);
                     candidateRepository.save(candidate);
                 }
                 keycloakUserService.assignRoleToExistingUser(email, "CANDIDATE");
@@ -139,6 +146,7 @@ public class LoginService {
                     client.setEmailAddress(email);
                     client.setKeycloakUserId(keycloakUserId);
                     client.setExperienceYear(0);
+                    client.setActive(true);
                     clientRepository.save(client);
                 }
                 keycloakUserService.assignRoleToExistingUser(email, "CLIENT");
@@ -150,6 +158,7 @@ public class LoginService {
                     admin.setEmailAddress(email);
                     admin.setKeycloakUserId(keycloakUserId);
                     admin.setExperienceYear(0);
+                    admin.setActive(true);
                     adminRepository.save(admin);
                 }
                 keycloakUserService.assignRoleToExistingUser(email, "ADMIN");
@@ -162,10 +171,142 @@ public class LoginService {
         }
     }
 
+    /* =====================================================
+       LOGOUT
+       ===================================================== */
+    public void logout(String refreshToken) {
 
+        try {
+            webClient.post()
+                    .uri(tokenUrl.replace("/token", "/logout"))
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(BodyInserters
+                            .fromFormData("client_id", clientId)
+                            .with("client_secret", clientSecret)
+                            .with("refresh_token", refreshToken))
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
 
+        } catch (Exception e) {
+            throw new RuntimeException("Keycloak logout failed", e);
+        }
+    }
 
+    /* =====================================================
+       SUSPEND USER (PERMANENT)
+       ===================================================== */
+    public void suspendUser(String email) {
 
+        keycloakUserService.disableUserByEmail(email);
 
+//        candidateRepository.findByKeycloakUserId(email)
+//                .ifPresent(c -> c.setActive(false));
 
+        clientRepository.findBykeycloakUserId(email)
+                .ifPresent(c -> c.setActive(false));
+
+        adminRepository.findByEmailAddress(email)
+                .ifPresent(a -> a.setActive(false));
+    }
+
+    /* =====================================================
+       REACTIVATE USER
+       ===================================================== */
+    public void reactivateUser(String email) {
+
+        keycloakUserService.enableUserByEmail(email);
+
+//        candidateRepository.findByKeycloakUserId(email)
+//                .ifPresent(c -> c.setActive(true));
+
+        clientRepository.findBykeycloakUserId(email)
+                .ifPresent(c -> c.setActive(true));
+
+        adminRepository.findByEmailAddress(email)
+                .ifPresent(a -> a.setActive(true));
+    }
+
+    /* =====================================================
+       TEMPORARY SUSPENSION
+       ===================================================== */
+    public void suspendUserTemporarily(String email, int minutes) {
+
+        LocalDateTime suspendedUntil = LocalDateTime.now().plusMinutes(minutes);
+
+//        candidateRepository.findByKeycloakUserId(email)
+//                .ifPresent(c -> c.setSuspendedUntil(suspendedUntil));
+
+        clientRepository.findBykeycloakUserId(email)
+                .ifPresent(c -> c.setSuspendedUntil(suspendedUntil));
+
+        adminRepository.findByEmailAddress(email)
+                .ifPresent(a -> a.setSuspendedUntil(suspendedUntil));
+    }
+
+    /* =====================================================
+       CHECK USER STATUS
+       ===================================================== */
+    private void checkIfUserAllowedToLogin(String email) {
+
+//        candidateRepository.findByKeycloakUserId(email)
+//                .ifPresent(this::validateStatus);
+
+        clientRepository.findBykeycloakUserId(email)
+                .ifPresent(this::validateStatus);
+
+        adminRepository.findByEmailAddress(email)
+                .ifPresent(this::validateStatus);
+    }
+
+    private void validateStatus(Object user) {
+
+        if (user instanceof Candidate candidate) {
+
+            if (!candidate.isActive()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Compte suspendu");
+            }
+
+            if (candidate.getSuspendedUntil() != null &&
+                    candidate.getSuspendedUntil().isAfter(LocalDateTime.now())) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Compte temporairement suspendu"
+                );
+            }
+        }
+
+        if (user instanceof ClientCompany client) {
+
+            if (!client.isActive()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Compte suspendu");
+            }
+
+            if (client.getSuspendedUntil() != null &&
+                    client.getSuspendedUntil().isAfter(LocalDateTime.now())) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Compte temporairement suspendu"
+                );
+            }
+        }
+
+        if (user instanceof Admin admin) {
+
+            if (!admin.isActive()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Compte suspendu");
+            }
+
+            if (admin.getSuspendedUntil() != null &&
+                    admin.getSuspendedUntil().isAfter(LocalDateTime.now())) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Compte temporairement suspendu"
+                );
+            }
+        }
+    }
 }

@@ -10,10 +10,13 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
 import java.io.IOException;
+import java.util.List;
+
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
@@ -48,12 +51,13 @@ public class ClientController {
         return clientService.getAllClients(page,size);
     }
 
-
-
-    @DeleteMapping("/me")
-    public void deleteClient(Authentication authentication){
-        clientService.deleteClient(authentication);
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteClient(@PathVariable Long id) {
+        clientService.deleteClient(id);
     }
+
 
     @PatchMapping("/me")
     public ClientResponse updateClientInfo  (@Valid @RequestBody ClientPatchRequest dto,
@@ -82,6 +86,23 @@ public class ClientController {
     public ClientResponse getAuthenticatedClient(Authentication authentication){
         return clientService.getClientFromKeycloak(authentication);
     }
+
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/by-account-request/{accountRequestId}")
+    public List<ClientResponse> getClientsByAccountRequest(
+            @PathVariable Long accountRequestId
+    ) {
+        return clientService.getClientsByApprovedAccountRequest(accountRequestId);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{id}")
+    public ClientResponse getClientById(@PathVariable Long id) {
+        return clientService.getClientById(id);
+    }
+
+
 
 
 }

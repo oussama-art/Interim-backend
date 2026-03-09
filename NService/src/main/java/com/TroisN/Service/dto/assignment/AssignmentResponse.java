@@ -7,6 +7,9 @@ import java.time.LocalDate;
 @Data
 public class AssignmentResponse {
 
+    private Long demandeId;
+
+    private Long candidateId;
     private String candidateName;
     private String candidateStatus;
 

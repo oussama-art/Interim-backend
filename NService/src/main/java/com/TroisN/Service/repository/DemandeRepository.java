@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -20,6 +21,15 @@ public interface DemandeRepository extends JpaRepository<Demande,Long> {
     Page<Demande> findAllWithProfils(Pageable pageable);
 
     Optional<Demande> findByIdAndClientId(Long demandeId, Long clientId);
+
+    @Query("""
+    SELECT DISTINCT d FROM Demande d
+    LEFT JOIN FETCH d.offers o
+    WHERE d.id = :demandeId
+""")
+    Optional<Demande> findByIdWithOffers(@Param("demandeId") Long demandeId);
+
+
 
 
 }

@@ -9,16 +9,21 @@ import lombok.Data;
 @Data
 public class ClientCreateRequest extends BaseUserRequest {
 
-
+    @NotNull
     private String title;
+
 
     private String description;
 
 
     private String sector;
 
+    private Integer numberOfAccounts;
+
 
     @Min(0)
     private Integer nbEmployee;
+
+    private Long NumDemande;
 
 }
