@@ -1,12 +1,14 @@
 package com.TroisN.Service.service;
 
 import com.TroisN.Service.dto.assignment.AssignmentResponse;
+import com.TroisN.Service.dto.notification.NotificationMessage;
 import com.TroisN.Service.dto.offer.OfferCreateRequest;
 import com.TroisN.Service.dto.offer.OfferResponse;
 import com.TroisN.Service.dto.offer.offreCandidate.OfferAddCandidatesRequest;
 import com.TroisN.Service.entity.*;
 import com.TroisN.Service.enums.CanidateStatus;
 import com.TroisN.Service.enums.DemandeStatus;
+import com.TroisN.Service.enums.NotificationRecipientType;
 import com.TroisN.Service.enums.OfferCandidateStatus;
 import com.TroisN.Service.mapper.AssignmentMapper;
 import com.TroisN.Service.mapper.OfferMapper;
@@ -15,9 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -28,20 +29,25 @@ public class OfferService {
     private final CandidateRepository candidateRepository;
     private final AssignmentRepository assignmentRepository;
     private final OfferCandidateRepository offerCandidateRepository;
+    private final WebSocketNotificationService webSocketNotificationService;
+    private final NotificationService notificationService;
 
     public OfferService(
             OfferRepository offerRepository,
             DemandeRepository demandeRepository,
             CandidateRepository candidateRepository,
             AssignmentRepository assignmentRepository,
-            OfferCandidateRepository offerCandidateRepository
+            OfferCandidateRepository offerCandidateRepository,
+            WebSocketNotificationService webSocketNotificationService,
+            NotificationService notificationService
     ) {
         this.offerRepository = offerRepository;
         this.demandeRepository = demandeRepository;
         this.candidateRepository = candidateRepository;
         this.assignmentRepository = assignmentRepository;
         this.offerCandidateRepository = offerCandidateRepository;
-
+        this.webSocketNotificationService = webSocketNotificationService;
+        this.notificationService = notificationService;
     }
 //
 //    @Transactional
@@ -192,7 +198,6 @@ public class OfferService {
                                         )
                                 );
 
-                        // 🔎 Vérification statut candidat
                         switch (candidate.getStatus()) {
 
                             case AVAILABLE -> {
@@ -200,7 +205,6 @@ public class OfferService {
                             }
 
                             case ON_MISSION -> {
-
                                 List<Assignment> overlappingAssignments =
                                         assignmentRepository.findOverlappingAssignments(
                                                 candidate.getId(),
@@ -228,13 +232,11 @@ public class OfferService {
                             );
                         }
 
-                        // 🔎 Vérification historique offres pour cette demande
                         List<OfferCandidate> previous =
-                                offerCandidateRepository
-                                        .findByCandidate_IdAndOffer_Demande_Id(
-                                                candidateId,
-                                                demande.getId()
-                                        );
+                                offerCandidateRepository.findByCandidate_IdAndOffer_Demande_Id(
+                                        candidateId,
+                                        demande.getId()
+                                );
 
                         for (OfferCandidate existing : previous) {
 
@@ -251,16 +253,12 @@ public class OfferService {
                                                 " a déjà été accepté pour cette demande"
                                 );
                             }
-
-                            // Si REJECTED → on autorise
                         }
 
-                        // Création nouvelle proposition
                         OfferCandidate oc = new OfferCandidate();
                         oc.setOffer(offer);
                         oc.setCandidate(candidate);
                         oc.setDemandeProfil(demandeProfil);
-                        // status = PROPOSED via @PrePersist
 
                         return oc;
                     });
@@ -270,6 +268,27 @@ public class OfferService {
         offer.setProposedCandidates(offerCandidates);
 
         Offer savedOffer = offerRepository.save(offer);
+
+        String demandeReference = savedOffer.getDemande().getReference();
+
+        // IMPORTANT :
+        // recipientKey doit être exactement la même valeur que le preferred_username du JWT
+        String clientUsername = savedOffer.getClient().getEmailAddress();
+
+        notificationService.createAndPublish(
+                "OFFER_CREATED",
+                "Nouvelle offre reçue",
+                "Une nouvelle offre a été créée pour la demande " + demandeReference + ".",
+                NotificationRecipientType.USER_QUEUE,
+                clientUsername,
+                "/offers",
+                savedOffer.getId(),
+                "OFFER"
+        );
+
+//        System.out.println(" Notification persistée pour le client : " + clientUsername);
+//        System.out.println(" Client email : " + clientUsername);
+//        System.out.println(" Offer ID : " + savedOffer.getId());
 
         return OfferMapper.toOfferResponse(savedOffer);
     }
@@ -314,7 +333,6 @@ public class OfferService {
                             )
                     );
 
-            // 🔎 Vérifier si déjà présent dans cette offre pour ce profil
             OfferCandidate existing = offerCandidates.stream()
                     .filter(oc ->
                             oc.getCandidate().getId().equals(candidateId)
@@ -338,17 +356,14 @@ public class OfferService {
                 }
 
                 if (existing.getStatus() == OfferCandidateStatus.REJECTED) {
-                    // 🔁 On le repropose
                     existing.setStatus(OfferCandidateStatus.PROPOSED);
                     continue;
                 }
             }
 
-            // 🔎 Vérifier statut métier du candidat
             switch (candidate.getStatus()) {
 
                 case AVAILABLE -> {
-                    // OK
                 }
 
                 case ON_MISSION -> {
@@ -377,7 +392,6 @@ public class OfferService {
                 );
             }
 
-            // ➕ Nouveau candidat
             OfferCandidate newCandidate = new OfferCandidate();
             newCandidate.setOffer(offer);
             newCandidate.setCandidate(candidate);
@@ -388,7 +402,24 @@ public class OfferService {
 
         Offer saved = offerRepository.save(offer);
 
+        String clientUsername = saved.getClient().getEmailAddress();
+        String demandeReference = saved.getDemande().getReference();
+
+        notificationService.createAndPublish(
+                "CANDIDATES_ADDED",
+                "Nouveaux candidats proposés",
+                "De nouveaux candidats ont été ajoutés à votre offre pour la demande "
+                        + demandeReference + ".",
+                NotificationRecipientType.USER_QUEUE,
+                clientUsername,
+                "/offers/" + saved.getId(),
+                saved.getId(),
+                "OFFER"
+        );
+
         return OfferMapper.toOfferResponse(saved);
+
+
     }
 
 
@@ -442,15 +473,12 @@ public class OfferService {
                     );
                 }
 
-
                 oc.setStatus(OfferCandidateStatus.ACCEPTED);
-
                 candidate.setNextAvailableDate(endDate);
+                candidate.setStatus(CanidateStatus.ON_MISSION);
 
                 accepted = oc;
             }
-
-
         }
 
         if (accepted == null) {
@@ -467,6 +495,21 @@ public class OfferService {
         assignment.setEndDate(endDate);
 
         Assignment saved = assignmentRepository.save(assignment);
+
+        notificationService.createAndPublish(
+                "CANDIDATE_ACCEPTED",
+                "Candidat accepté par le client",
+                "Le client a accepté le candidat " +
+                        accepted.getCandidate().getFirstName() + " " +
+                        accepted.getCandidate().getLastName() +
+                        " pour l'offre ID " + offer.getId() +
+                        " liée à la demande " + offer.getDemande().getReference() + ".",
+                NotificationRecipientType.ADMIN_TOPIC,
+                "ADMIN_OFFERS",
+                "/admin/offers/",
+                offer.getId(),
+                "OFFER"
+        );
 
         return AssignmentMapper.toResponse(saved);
     }
@@ -503,11 +546,11 @@ public class OfferService {
         boolean accepted = offer.getProposedCandidates().stream()
                 .anyMatch(oc -> oc.getStatus() == OfferCandidateStatus.ACCEPTED);
 
-        if (accepted) {
-            throw new IllegalStateException(
-                    "Impossible de supprimer une offre déjà acceptée"
-            );
-        }
+//        if (accepted) {
+//            throw new IllegalStateException(
+//                    "Impossible de supprimer une offre déjà acceptée"
+//            );
+//        }
 
         offerRepository.delete(offer);
     }
@@ -553,6 +596,21 @@ public class OfferService {
         }
 
         target.setStatus(OfferCandidateStatus.REJECTED);
+
+        notificationService.createAndPublish(
+                "CANDIDATE_REJECTED",
+                "Candidat refusé par le client",
+                "Le client a refusé le candidat " +
+                        target.getCandidate().getFirstName() + " " +
+                        target.getCandidate().getLastName() +
+                        " pour l'offre ID " + offer.getId() +
+                        " liée à la demande " + offer.getDemande().getReference() + ".",
+                NotificationRecipientType.ADMIN_TOPIC,
+                "ADMIN_OFFERS",
+                "/admin/offers/",
+                offer.getId(),
+                "OFFER"
+        );
     }
 
     private void assertDemandeIsOpen(Demande demande) {

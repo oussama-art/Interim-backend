@@ -1,10 +1,13 @@
 package com.TroisN.Service.repository;
 
 import com.TroisN.Service.entity.Candidate;
+import com.TroisN.Service.enums.CanidateStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -51,4 +54,14 @@ public interface CandidateRepository extends JpaRepository<Candidate, Long> {
     */
 
     boolean existsByFirstNameAndLastName(String firstName, String lastName);
+
+    @Modifying
+    @Transactional
+    @Query("""
+    UPDATE Candidate c
+    SET c.status = :status
+    WHERE c.id = :id
+    """)
+    void updateStatus(@Param("id") Long id,
+                      @Param("status") CanidateStatus status);
 }

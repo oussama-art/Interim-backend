@@ -29,6 +29,23 @@ import java.util.Map;
 public class SecurityConfig {
 
     /**
+     * 🔌 WebSocket endpoints (allow WebSocket connections)
+     */
+    @Bean
+    @Order(0)
+    public SecurityFilterChain webSocketSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/ws/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll()
+                );
+
+        return http.build();
+    }
+
+    /**
      * 🔓 Public endpoints (auth, swagger, registration)
      */
     @Bean
@@ -104,13 +121,15 @@ public class SecurityConfig {
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
 
+        converter.setPrincipalClaimName("preferred_username");
+
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             Map<String, Object> realmAccess = jwt.getClaim("realm_access");
+
             if (realmAccess == null) {
                 return List.of();
             }
 
-            @SuppressWarnings("unchecked")
             List<String> roles = (List<String>) realmAccess.get("roles");
 
             return roles.stream()

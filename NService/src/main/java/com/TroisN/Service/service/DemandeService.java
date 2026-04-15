@@ -1,18 +1,18 @@
 package com.TroisN.Service.service;
 import com.TroisN.Service.dto.demande.DemandeRequest;
 import com.TroisN.Service.dto.demande.DemandeResponse;
-import com.TroisN.Service.entity.ClientCompany;
-import com.TroisN.Service.entity.Demande;
-import com.TroisN.Service.entity.DemandeProfil;
-import com.TroisN.Service.entity.Offer;
+import com.TroisN.Service.entity.*;
 import com.TroisN.Service.enums.DemandeStatus;
+import com.TroisN.Service.enums.NotificationRecipientType;
 import com.TroisN.Service.enums.OfferCandidateStatus;
+import com.TroisN.Service.event.DemandeDeletedEvent;
 import com.TroisN.Service.mapper.DemandeMapper;
 import com.TroisN.Service.repository.AdminRepository;
 import com.TroisN.Service.repository.AssignmentRepository;
 import com.TroisN.Service.repository.ClientRepository;
 import com.TroisN.Service.repository.DemandeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +20,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +32,8 @@ public class DemandeService {
     private final ClientRepository clientRepository;
     private final AdminService adminService;
     private final AssignmentRepository assignmentRepository;
+    private final NotificationService notificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     public DemandeResponse createDemande(Authentication authentication,
@@ -52,7 +56,34 @@ public class DemandeService {
 
         adminService.notifyAdmins(saved);
 
+        String clientName = buildClientName(client);
+
+        notificationService.createAndPublish(
+                "DEMANDE_CREATED",
+                "Nouvelle demande",
+                "Une nouvelle demande a été ajoutée par le client : " + clientName,
+                NotificationRecipientType.ADMIN_TOPIC,
+                "ADMIN_DEMANDES",
+                "/admin/demandes/" + saved.getId(),
+                saved.getId(),
+                "DEMANDE"
+        );
+
         return DemandeMapper.toDemandeResponse(saved);
+    }
+
+    private String buildClientName(ClientCompany client) {
+
+        String firstName = client.getFirstName() != null ? client.getFirstName() : "";
+        String lastName = client.getLastName() != null ? client.getLastName() : "";
+
+        String fullName = (firstName + " " + lastName).trim();
+
+        if (!fullName.isEmpty()) {
+            return fullName;
+        }
+
+        return client.getEmailAddress();
     }
 
 
@@ -136,15 +167,14 @@ public class DemandeService {
             );
         }
 
-        // Champs simples
         demande.setTitle(request.getTitle());
         demande.setDescription(request.getDescription());
         demande.setTotalEmployeesNeeded(request.getTotalEmployeesNeeded());
         demande.setStartDate(request.getStartDate());
         demande.setEndDate(request.getEndDate());
 
-        // Profils
         demande.getProfils().clear();
+
         request.getProfils().forEach(p -> {
             DemandeProfil profil = new DemandeProfil();
             profil.setProfilName(p.getProfilName());
@@ -154,6 +184,18 @@ public class DemandeService {
         });
 
         Demande saved = demandeRepository.save(demande);
+
+        notificationService.createAndPublish(
+                "DEMANDE_UPDATED",
+                "Demande modifiée",
+                "La demande \"" + saved.getTitle() + "\" a été modifiée par le client : " + buildClientName(client),
+                NotificationRecipientType.ADMIN_TOPIC,
+                "ADMIN_DEMANDES",
+                "/admin/demandes/" + saved.getId(),
+                saved.getId(),
+                "DEMANDE"
+        );
+
         return DemandeMapper.toDemandeResponse(saved);
     }
 
@@ -166,6 +208,7 @@ public class DemandeService {
             );
         }
     }
+
     @Transactional
     public void deleteDemande(Long demandeId) {
 
@@ -176,41 +219,18 @@ public class DemandeService {
                         )
                 );
 
+        // récupérer les assignments avant suppression
+        List<Assignment> assignments = assignmentRepository.findByDemande_Id(demandeId);
 
+        // suppression
         assignmentRepository.deleteByDemande_Id(demandeId);
 
-
         demandeRepository.delete(demande);
+
+        // publier event avec assignments
+        eventPublisher.publishEvent(new DemandeDeletedEvent(demandeId, assignments));
     }
-//
-//    @Transactional
-//    public DemandeResponse closeDemande(Long demandeId) {
-//
-//        Demande demande = demandeRepository.findByIdWithOffers(demandeId)
-//                .orElseThrow(() -> new IllegalArgumentException(
-//                        "Demande introuvable avec ID = " + demandeId
-//                ));
-//
-//        if (demande.getStatus() == DemandeStatus.CLOSED) {
-//            throw new IllegalStateException(
-//                    "Cette demande est déjà clôturée"
-//            );
-//        }
-//
-//
-//        for (Offer offer : demande.getOffers()) {
-//
-//            offer.getProposedCandidates().removeIf(oc ->
-//                    oc.getStatus() == OfferCandidateStatus.PROPOSED
-//            );
-//        }
-//
-//        demande.setStatus(DemandeStatus.CLOSED);
-//
-//        Demande saved = demandeRepository.save(demande);
-//
-//        return DemandeMapper.toDemandeResponse(saved);
-//    }
+
 
     @Transactional
     public DemandeResponse closeDemande(Long demandeId) {
@@ -239,13 +259,6 @@ public class DemandeService {
 
         return DemandeMapper.toDemandeResponse(demande);
     }
-
-
-
-
-
-
-
 
 
 

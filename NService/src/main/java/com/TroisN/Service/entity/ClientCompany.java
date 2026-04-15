@@ -17,4 +17,7 @@ public class ClientCompany extends User{
     private Integer nbEmployee;
 
     private Long numDemande;
+
+
+
 }
