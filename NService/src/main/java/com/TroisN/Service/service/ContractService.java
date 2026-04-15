@@ -3,6 +3,7 @@ package com.TroisN.Service.service;
 import com.TroisN.Service.dto.contract.ContractCreateRequest;
 import com.TroisN.Service.dto.contract.ContractResponse;
 import com.TroisN.Service.dto.contract.ContractIntervalCheckResponse;
+import com.TroisN.Service.dto.notification.NotificationMessage;
 import com.TroisN.Service.entity.Assignment;
 import com.TroisN.Service.entity.Candidate;
 import com.TroisN.Service.entity.Contract;
@@ -22,10 +23,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import com.TroisN.Service.entity.Notification;
+import com.TroisN.Service.enums.NotificationRecipientType;
+import com.TroisN.Service.event.NotificationCreatedEvent;
+import com.TroisN.Service.repository.NotificationRepository;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -46,6 +53,7 @@ public class ContractService {
     private final DemandeRepository demandeRepository;
     private final ContractMapper contractMapper;
     private final AssignmentRepository assignmentRepository;
+    private final NotificationService notificationService;
 
     @Value("${app.storage.contracts-dir:/app/uploads/contracts}")
     private String contractsDir;
@@ -62,6 +70,17 @@ public class ContractService {
                 .map(contractMapper::toResponse);
     }
 
+    @Transactional(readOnly = true)
+    public List<ContractResponse> getContractsByDemande(Long demandeId)
+    {
+        demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new IllegalArgumentException("Demande introuvable avec ID = " + demandeId));
+        return contractRepository.findByDemandeId(demandeId)
+                .stream()
+                .map(contractMapper::toResponse)
+                .toList();
+    }
+
     // CREATE
 
     @Transactional
@@ -72,34 +91,16 @@ public class ContractService {
     ) throws IOException {
 
         Candidate candidate = candidateRepository.findById(candidateId)
-                .orElseThrow(() -> new IllegalArgumentException("Candidate introuvable avec ID = " + candidateId));
+                .orElseThrow(() -> new IllegalArgumentException("Candidate introuvable"));
 
         Demande demande = demandeRepository.findById(request.demandeId())
-                .orElseThrow(() -> new IllegalArgumentException("Demande introuvable avec ID = " + request.demandeId()));
+                .orElseThrow(() -> new IllegalArgumentException("Demande introuvable"));
 
         validateDates(request.startDate(), request.endDate());
 
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Fichier contrat requis");
-        }
-
-
-        Contract existing = contractRepository
-                .findByCandidateIdAndDemandeId(candidateId, request.demandeId())
-                .orElse(null);
-
-        Long excludeId = (existing == null) ? null : existing.getId();
-
-        assertNoContractOverlap(candidateId, request.startDate(), request.endDate(), excludeId);
-
-        syncAssignmentDates(candidateId, request.demandeId(), request.startDate(), request.endDate());
-
         Path target = storeFile(request.demandeId(), candidateId, file);
 
-        Contract contract = (existing != null) ? existing : new Contract();
-
-        deleteFileQuietly(contract.getFilePath());
-
+        Contract contract = new Contract();
         contract.setCandidate(candidate);
         contract.setDemande(demande);
         contract.setStartDate(request.startDate());
@@ -107,69 +108,86 @@ public class ContractService {
         contract.setFilePath(target.toString());
         contract.setOriginalFileName(getOriginalName(file));
 
-        candidate.setNextAvailableDate(request.endDate());
-        candidate.setStatus(CanidateStatus.ON_MISSION);
-        candidateRepository.save(candidate);
-
         Contract saved = contractRepository.save(contract);
+
+        notifyClient(
+                demande,
+                candidate,
+                "CONTRACT_CREATED",
+                "Nouveau contrat disponible",
+                "Un nouveau contrat a été ajouté."
+        );
+
         return contractMapper.toResponse(saved);
     }
 
 
-    @Transactional(readOnly = true)
-    public List<ContractResponse> getContractsByDemande(Long demandeId) {
-        demandeRepository.findById(demandeId)
-                .orElseThrow(() -> new IllegalArgumentException("Demande introuvable avec ID = " + demandeId));
-
-        return contractRepository.findByDemandeId(demandeId)
-                .stream()
-                .map(contractMapper::toResponse)
-                .toList();
-    }
-
-
     @Transactional
-    public ContractResponse updateContractFields(Long demandeId, Long contractId, ContractCreateRequest request) {
+    public ContractResponse updateContractFields(
+            Long demandeId,
+            Long contractId,
+            ContractCreateRequest request
+    ) {
 
-        if (!demandeId.equals(request.demandeId())) {
-            throw new IllegalArgumentException("Demande ID incohérent (URL vs metadata)");
-        }
+        if (!demandeId.equals(request.demandeId()))
+            throw new IllegalArgumentException("Demande ID incohérent");
 
         validateDates(request.startDate(), request.endDate());
 
-        Contract contract = contractRepository.findByIdAndDemandeId(contractId, demandeId)
-                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable avec ID = " + contractId));
+        Contract contract = contractRepository
+                .findByIdAndDemandeId(contractId, demandeId)
+                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable"));
 
         Long candidateId = contract.getCandidate().getId();
 
-
-        assertNoContractOverlap(candidateId, request.startDate(), request.endDate(), contractId);
+        assertNoContractOverlap(
+                candidateId,
+                request.startDate(),
+                request.endDate(),
+                contractId
+        );
 
         contract.setStartDate(request.startDate());
         contract.setEndDate(request.endDate());
 
-
-        syncAssignmentDates(candidateId, demandeId, request.startDate(), request.endDate());
+        syncAssignmentDates(
+                candidateId,
+                demandeId,
+                request.startDate(),
+                request.endDate()
+        );
 
         Contract saved = contractRepository.save(contract);
+
+        notifyClient(
+                saved.getDemande(),
+                saved.getCandidate(),
+                "CONTRACT_DATES_UPDATED",
+                "Dates du contrat mises à jour",
+                "Les dates du contrat ont été modifiées."
+        );
+
         return contractMapper.toResponse(saved);
     }
 
 
     @Transactional
-    public ContractResponse updateContractFile(Long demandeId, Long contractId, MultipartFile file) throws IOException {
+    public ContractResponse updateContractFile(
+            Long demandeId,
+            Long contractId,
+            MultipartFile file
+    ) throws IOException {
 
-        if (file == null || file.isEmpty()) {
+        if (file == null || file.isEmpty())
             throw new IllegalArgumentException("Fichier contrat requis");
-        }
 
-        Contract contract = contractRepository.findByIdAndDemandeId(contractId, demandeId)
-                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable avec ID = " + contractId));
+        Contract contract = contractRepository
+                .findByIdAndDemandeId(contractId, demandeId)
+                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable"));
 
         Long candidateId = contract.getCandidate().getId();
 
         Path target = storeFile(demandeId, candidateId, file);
-
 
         deleteFileQuietly(contract.getFilePath());
 
@@ -177,6 +195,15 @@ public class ContractService {
         contract.setOriginalFileName(getOriginalName(file));
 
         Contract saved = contractRepository.save(contract);
+
+        notifyClient(
+                saved.getDemande(),
+                saved.getCandidate(),
+                "CONTRACT_FILE_UPDATED",
+                "Fichier du contrat mis à jour",
+                "Le fichier du contrat a été remplacé."
+        );
+
         return contractMapper.toResponse(saved);
     }
 
@@ -191,34 +218,54 @@ public class ContractService {
             MultipartFile file
     ) throws IOException {
 
-        if (!demandeId.equals(request.demandeId())) {
-            throw new IllegalArgumentException("Demande ID incohérent (URL vs metadata)");
-        }
+        if (!demandeId.equals(request.demandeId()))
+            throw new IllegalArgumentException("Demande ID incohérent");
 
         validateDates(request.startDate(), request.endDate());
 
-        Contract contract = contractRepository.findByIdAndDemandeId(contractId, demandeId)
-                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable avec ID = " + contractId));
+        Contract contract = contractRepository
+                .findByIdAndDemandeId(contractId, demandeId)
+                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable"));
 
         Long candidateId = contract.getCandidate().getId();
 
-        assertNoContractOverlap(candidateId, request.startDate(), request.endDate(), contractId);
+        assertNoContractOverlap(
+                candidateId,
+                request.startDate(),
+                request.endDate(),
+                contractId
+        );
 
         contract.setStartDate(request.startDate());
         contract.setEndDate(request.endDate());
 
-
-        syncAssignmentDates(candidateId, demandeId, request.startDate(), request.endDate());
+        syncAssignmentDates(
+                candidateId,
+                demandeId,
+                request.startDate(),
+                request.endDate()
+        );
 
         if (file != null && !file.isEmpty()) {
+
             Path target = storeFile(demandeId, candidateId, file);
 
             deleteFileQuietly(contract.getFilePath());
+
             contract.setFilePath(target.toString());
             contract.setOriginalFileName(getOriginalName(file));
         }
 
         Contract saved = contractRepository.save(contract);
+
+        notifyClient(
+                saved.getDemande(),
+                saved.getCandidate(),
+                "CONTRACT_UPDATED",
+                "Contrat modifié",
+                "Le contrat a été mis à jour."
+        );
+
         return contractMapper.toResponse(saved);
     }
 
@@ -228,13 +275,55 @@ public class ContractService {
     @Transactional
     public void deleteContract(Long demandeId, Long contractId) {
 
-        Contract contract = contractRepository.findByIdAndDemandeId(contractId, demandeId)
-                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable avec ID = " + contractId));
+        Contract contract = contractRepository
+                .findByIdAndDemandeId(contractId, demandeId)
+                .orElseThrow(() -> new IllegalArgumentException("Contrat introuvable"));
 
-        // supprimer fichier
+        Demande demande = contract.getDemande();
+
         deleteFileQuietly(contract.getFilePath());
 
         contractRepository.delete(contract);
+
+        notifyClient(
+                demande,
+                contract.getCandidate(),
+                "CONTRACT_DELETED",
+                "Contrat supprimé",
+                "Le contrat associé à votre mission a été supprimé."
+        );
+    }
+
+    private void notifyClient(
+            Demande demande,
+            Candidate candidate,
+            String type,
+            String title,
+            String message
+    ) {
+
+        String clientUsername = demande.getClient().getEmailAddress();
+
+        String candidateName =
+                candidate.getFirstName() + " " + candidate.getLastName();
+
+        String demandeReference = demande.getReference();
+
+        String fullMessage =
+                message +
+                        " Candidat : " + candidateName +
+                        " | Demande : " + demandeReference;
+
+        notificationService.createAndPublish(
+                type,
+                title,
+                fullMessage,
+                NotificationRecipientType.USER_QUEUE,
+                clientUsername,
+                "/client/contracts",
+                demande.getId(),
+                "CONTRACT"
+        );
     }
 
 

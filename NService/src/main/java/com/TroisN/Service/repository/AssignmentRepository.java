@@ -52,6 +52,12 @@ public interface AssignmentRepository extends JpaRepository<Assignment,Long> {
 
     Optional<Assignment> findByCandidate_IdAndDemande_Id(Long candidateId, Long demandeId);
 
+    List<Assignment> findByDemande_Id(Long demandeId);
+
+    boolean existsByCandidate_Id(Long candidateId);
+
+    boolean existsByCandidate_IdAndDemande_IdNot(Long candidateId, Long demandeId);
+
 
 
 

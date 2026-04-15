@@ -7,8 +7,8 @@ import com.TroisN.Service.dto.account.EmailCheckResponse;
 import com.TroisN.Service.dto.client.ClientCreateRequest;
 import com.TroisN.Service.entity.Account;
 import com.TroisN.Service.entity.AccountEmail;
+import com.TroisN.Service.enums.NotificationRecipientType;
 import com.TroisN.Service.enums.RequestStatus;
-import com.TroisN.Service.event.AccountRequestCreatedEvent;
 import com.TroisN.Service.mapper.AccountCreationMapper;
 import com.TroisN.Service.repository.AccountRepository;
 import com.TroisN.Service.repository.ClientRepository;
@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
-import org.springframework.context.ApplicationEventPublisher;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +32,7 @@ public class AccountService {
     private final ClientRepository clientRepository;
     private final ClientService clientService;
     private final EmailService emailService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final NotificationService notificationService;
 
 
 
@@ -50,8 +49,15 @@ public class AccountService {
         Account entity = AccountCreationMapper.toEntity(dto);
         Account saved = accountRepository.save(entity);
 
-        eventPublisher.publishEvent(
-                new AccountRequestCreatedEvent(saved.getId())
+        notificationService.createAndPublish(
+                "ACCOUNT_REQUEST_CREATED",
+                "Nouvelle demande de création",
+                "Une nouvelle demande de création de compte a été soumise par le client " + saved.getCompanyTitle(),
+                NotificationRecipientType.ADMIN_TOPIC,
+                "/topic/admin/account-requests",
+                "/admin/account-requests",
+                saved.getId(),
+                "ACCOUNT_REQUEST"
         );
 
         return AccountCreationMapper.toResponse(saved);
